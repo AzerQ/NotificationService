@@ -10,11 +10,16 @@ public class SmtpEmailProvider : IEmailProvider
 {
     private readonly EmailProviderOptions _options;
     private readonly ILogger<SmtpEmailProvider> _logger;
+    private readonly ISmtpClientFactory _smtpClientFactory;
 
-    public SmtpEmailProvider(IOptions<EmailProviderOptions> options, ILogger<SmtpEmailProvider> logger)
+    public SmtpEmailProvider(
+        IOptions<EmailProviderOptions> options,
+        ILogger<SmtpEmailProvider> logger,
+        ISmtpClientFactory smtpClientFactory)
     {
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _smtpClientFactory = smtpClientFactory ?? throw new ArgumentNullException(nameof(smtpClientFactory));
     }
 
     public async Task<bool> SendEmailAsync(string to, string subject, string body, string? fromName = null)
@@ -24,11 +29,7 @@ public class SmtpEmailProvider : IEmailProvider
             throw new ArgumentException("Recipient email is required.", nameof(to));
         }
 
-        using var smtpClient = new SmtpClient(_options.SmtpHost, _options.SmtpPort)
-        {
-            EnableSsl = _options.EnableSsl,
-            Credentials = new NetworkCredential(_options.UserName, _options.Password)
-        };
+        using var smtpClient = _smtpClientFactory.Create(_options);
 
         var fromAddress = new MailAddress(
             string.IsNullOrWhiteSpace(_options.FromAddress) ? _options.UserName : _options.FromAddress,
