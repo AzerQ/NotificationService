@@ -7,6 +7,7 @@ using NotificationService.Domain.Interfaces;
 using NotificationService.Infrastructure.Data;
 using NotificationService.Infrastructure.Providers.Email;
 using NotificationService.Infrastructure.Repositories;
+using NotificationService.Infrastructure.Data.Init;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -52,5 +53,8 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Apply migrations and seed initial data
+await DbInitializer.InitializeAsync(app.Services);
 
 app.Run();
