@@ -36,6 +36,7 @@ builder.Services.Configure<TemplateOptions>(configuration.GetSection("Templates"
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<ITemplateRepository, TemplateRepository>();
+builder.Services.AddScoped<IUserRoutePreferenceRepository, UserRoutePreferenceRepository>();
 
 builder.Services.AddScoped<INotificationMapper, NotificationMapper>();
 builder.Services.AddScoped<INotificationSender, NotificationSender>();

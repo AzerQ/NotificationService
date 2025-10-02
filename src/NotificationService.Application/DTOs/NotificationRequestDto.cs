@@ -7,6 +7,7 @@ public class NotificationRequestDto
 {
     public string Title { get; set; } = string.Empty;
     public string Message { get; set; } = string.Empty;
+    public string Route { get; set; } = string.Empty; // семантический идентификатор маршрута
     public Guid RecipientId { get; set; }
     public NotificationChannel Channel { get; set; }
     public string? TemplateName { get; set; }

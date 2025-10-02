@@ -19,6 +19,10 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
         builder.Property(x => x.Message)
             .HasMaxLength(4000);
 
+        builder.Property(x => x.Route)
+            .IsRequired()
+            .HasMaxLength(200);
+
         builder.Property(x => x.CreatedAt)
             .IsRequired();
 

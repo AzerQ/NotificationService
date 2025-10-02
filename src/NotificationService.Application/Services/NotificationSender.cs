@@ -10,17 +10,20 @@ public class NotificationSender : INotificationSender
     private readonly IEmailProvider? _emailProvider;
     private readonly ISmsProvider? _smsProvider;
     private readonly IPushNotificationProvider? _pushNotificationProvider;
+    private readonly IUserRoutePreferenceRepository? _userRoutePreferenceRepository;
 
     public NotificationSender(
         INotificationRepository notificationRepository,
         IEmailProvider? emailProvider = null,
         ISmsProvider? smsProvider = null,
-        IPushNotificationProvider? pushNotificationProvider = null)
+        IPushNotificationProvider? pushNotificationProvider = null,
+        IUserRoutePreferenceRepository? userRoutePreferenceRepository = null)
     {
         _notificationRepository = notificationRepository ?? throw new ArgumentNullException(nameof(notificationRepository));
         _emailProvider = emailProvider;
         _smsProvider = smsProvider;
         _pushNotificationProvider = pushNotificationProvider;
+        _userRoutePreferenceRepository = userRoutePreferenceRepository;
     }
 
     public async Task SendAsync(Notification notification)
@@ -32,6 +35,18 @@ public class NotificationSender : INotificationSender
         if (!validationResult.IsValid)
         {
             throw new ArgumentException(string.Join("; ", validationResult.Errors));
+        }
+
+        // Проверка пользовательских предпочтений по маршрутам (по умолчанию разрешено)
+        if (_userRoutePreferenceRepository is not null && notification.Recipient is not null)
+        {
+            var allowed = await _userRoutePreferenceRepository.IsRouteEnabledAsync(notification.Recipient.Id, notification.Route);
+            if (!allowed)
+            {
+                notification.Status = NotificationStatus.Failed;
+                await _notificationRepository.UpdateNotificationStatusAsync(notification.Id, notification.Status);
+                return; // тихо выходим без отправки
+            }
         }
 
         var wasSent = notification.Channel switch

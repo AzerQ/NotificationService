@@ -46,7 +46,7 @@ public class NotificationCommandService : INotificationCommandService
                        ?? throw new ArgumentException($"Template '{request.TemplateName}' not found.");
         }
 
-        var notification = _notificationMapper.MapFromRequest(request, user, template);
+    var notification = _notificationMapper.MapFromRequest(request, user, template);
 
         // Render message/subject from template if provided
         if (template is not null && request.Parameters is JsonElement payload)
