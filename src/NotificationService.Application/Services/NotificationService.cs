@@ -1,141 +1,96 @@
+using NotificationService.Application.DTOs;
+using NotificationService.Application.Interfaces;
+using NotificationService.Application.Mappers;
 using NotificationService.Domain.Interfaces;
 using NotificationService.Domain.Models;
 
 namespace NotificationService.Application.Services;
 
-public class NotificationService : INotificationService
+public class NotificationCommandService : INotificationCommandService
 {
     private readonly INotificationRepository _notificationRepository;
-    private readonly IEmailProvider? _emailProvider;
-    private readonly ISmsProvider? _smsProvider;
-    private readonly IPushNotificationProvider? _pushNotificationProvider;
+    private readonly ITemplateRepository _templateRepository;
+    private readonly IUserRepository _userRepository;
+    private readonly INotificationMapper _notificationMapper;
+    private readonly INotificationSender _notificationSender;
 
-    public NotificationService(
+    public NotificationCommandService(
         INotificationRepository notificationRepository,
-        IEmailProvider? emailProvider = null,
-        ISmsProvider? smsProvider = null,
-        IPushNotificationProvider? pushNotificationProvider = null)
+        ITemplateRepository templateRepository,
+        IUserRepository userRepository,
+        INotificationSender notificationSender,
+        INotificationMapper? notificationMapper = null)
     {
         _notificationRepository = notificationRepository ?? throw new ArgumentNullException(nameof(notificationRepository));
-        _emailProvider = emailProvider;
-        _smsProvider = smsProvider;
-        _pushNotificationProvider = pushNotificationProvider;
+        _templateRepository = templateRepository ?? throw new ArgumentNullException(nameof(templateRepository));
+        _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
+        _notificationSender = notificationSender ?? throw new ArgumentNullException(nameof(notificationSender));
+        _notificationMapper = notificationMapper ?? new NotificationMapper();
     }
 
-    public async Task<Notification> CreateNotificationAsync(
-        string title,
-        string message,
-        User recipient,
-        NotificationChannel channel,
-        NotificationTemplate? template = null)
+    public async Task<NotificationResponseDto> CreateNotificationAsync(NotificationRequestDto request)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(title);
-        ArgumentNullException.ThrowIfNull(recipient);
+        ArgumentNullException.ThrowIfNull(request);
 
-        var notification = new Notification
+        var user = await _userRepository.GetUserByIdAsync(request.RecipientId)
+                   ?? throw new ArgumentException($"Recipient with id {request.RecipientId} not found.");
+
+        NotificationTemplate? template = null;
+        if (!string.IsNullOrWhiteSpace(request.TemplateName))
         {
-            Id = Guid.NewGuid(),
-            Title = title,
-            Message = message,
-            Recipient = recipient,
-            Channel = channel,
-            Template = template,
-            CreatedAt = DateTime.UtcNow,
-            Status = NotificationStatus.Pending
-        };
+            template = await _templateRepository.GetTemplateByNameAsync(request.TemplateName)
+                       ?? throw new ArgumentException($"Template '{request.TemplateName}' not found.");
+        }
+
+        var notification = _notificationMapper.MapFromRequest(request, user, template);
 
         await _notificationRepository.SaveNotificationAsync(notification);
 
-        return notification;
+        return _notificationMapper.MapToResponse(notification);
     }
 
-    public async Task SendNotificationAsync(Notification notification)
+    public async Task SendNotificationAsync(Guid notificationId)
     {
-        ArgumentNullException.ThrowIfNull(notification);
-        ArgumentNullException.ThrowIfNull(notification.Recipient);
+        var notification = await _notificationRepository.GetNotificationByIdAsync(notificationId)
+                           ?? throw new ArgumentException($"Notification with id {notificationId} not found.");
 
-        var validationResult = NotificationValidator.Validate(notification);
-        if (!validationResult.IsValid)
-        {
-            throw new ArgumentException(string.Join("; ", validationResult.Errors));
-        }
+        await _notificationSender.SendAsync(notification);
+    }
+}
 
-        var wasSent = notification.Channel switch
-        {
-            NotificationChannel.Email => await SendEmailAsync(notification),
-            NotificationChannel.Sms => await SendSmsAsync(notification),
-            NotificationChannel.Push => await SendPushAsync(notification),
-            _ => throw new NotSupportedException($"Канал {notification.Channel} не поддерживается.")
-        };
+public class NotificationQueryService : INotificationQueryService
+{
+    private readonly INotificationRepository _notificationRepository;
+    private readonly INotificationMapper _notificationMapper;
 
-        notification.Status = wasSent ? NotificationStatus.Sent : NotificationStatus.Failed;
-        await _notificationRepository.UpdateNotificationStatusAsync(notification.Id, notification.Status);
-
-        if (!wasSent)
-        {
-            throw new InvalidOperationException($"Не удалось отправить уведомление через канал {notification.Channel}.");
-        }
+    public NotificationQueryService(
+        INotificationRepository notificationRepository,
+        INotificationMapper? notificationMapper = null)
+    {
+        _notificationRepository = notificationRepository ?? throw new ArgumentNullException(nameof(notificationRepository));
+        _notificationMapper = notificationMapper ?? new NotificationMapper();
     }
 
-    private async Task<bool> SendEmailAsync(Notification notification)
+    public async Task<NotificationResponseDto?> GetByIdAsync(Guid id)
     {
-        if (_emailProvider is null)
-        {
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(notification.Recipient.Email))
-        {
-            return false;
-        }
-
-        var subject = notification.Template?.Subject ?? notification.Title;
-        var body = ResolveContent(notification);
-
-        return await _emailProvider.SendEmailAsync(notification.Recipient.Email, subject, body);
+        var notification = await _notificationRepository.GetNotificationByIdAsync(id);
+        return notification is null ? null : _notificationMapper.MapToResponse(notification);
     }
 
-    private async Task<bool> SendSmsAsync(Notification notification)
+    public async Task<IReadOnlyCollection<NotificationResponseDto>> GetByUserAsync(Guid userId)
     {
-        if (_smsProvider is null)
-        {
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(notification.Recipient.PhoneNumber))
-        {
-            return false;
-        }
-
-        var message = ResolveContent(notification);
-        return await _smsProvider.SendSmsAsync(notification.Recipient.PhoneNumber, message);
+        var notifications = await _notificationRepository.GetNotificationsForUserAsync(userId);
+        return notifications.Select(_notificationMapper.MapToResponse).ToArray();
     }
 
-    private async Task<bool> SendPushAsync(Notification notification)
+    public async Task<IReadOnlyCollection<NotificationResponseDto>> GetByStatusAsync(string status)
     {
-        if (_pushNotificationProvider is null)
+        if (!Enum.TryParse<NotificationStatus>(status, true, out var parsedStatus))
         {
-            return false;
+            throw new ArgumentException($"Unknown notification status '{status}'.", nameof(status));
         }
 
-        if (string.IsNullOrWhiteSpace(notification.Recipient.DeviceToken))
-        {
-            return false;
-        }
-
-        var body = ResolveContent(notification);
-        var title = notification.Template?.Subject ?? notification.Title;
-
-        return await _pushNotificationProvider.SendPushNotificationAsync(notification.Recipient.DeviceToken!, title, body);
-    }
-
-    private static string ResolveContent(Notification notification)
-    {
-        if (!string.IsNullOrWhiteSpace(notification.Message))
-        {
-            return notification.Message;
-        }
-
-        return notification.Template?.Content ?? string.Empty;
+        var notifications = await _notificationRepository.GetNotificationsByStatusAsync(parsedStatus);
+        return notifications.Select(_notificationMapper.MapToResponse).ToArray();
     }
 }
