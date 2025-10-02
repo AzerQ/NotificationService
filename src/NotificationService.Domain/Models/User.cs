@@ -7,4 +7,5 @@ public class User
     public string Email { get; set; } = string.Empty;
     public string? PhoneNumber { get; set; }
     public DateTime CreatedAt { get; set; }
+    public string? DeviceToken { get; set; }
 }
