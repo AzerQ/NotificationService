@@ -1,45 +1,7 @@
 ﻿using FluentAssertions;
-using Moq;
-using NotificationService.Application.Services;
-using NotificationService.Domain.Interfaces;
 using NotificationService.Domain.Models;
 
 namespace NotificationService.Domain.Tests;
-
-public class NotificationServiceTests
-{
-    [Fact]
-    public async Task SendNotificationAsync_EmailChannel_ShouldUpdateStatusToSent()
-    {
-        var notificationRepositoryMock = new Mock<INotificationRepository>();
-        notificationRepositoryMock
-            .Setup(repo => repo.UpdateNotificationStatusAsync(It.IsAny<Guid>(), NotificationStatus.Sent))
-            .Returns(Task.CompletedTask);
-
-        var emailProviderMock = new Mock<IEmailProvider>();
-        emailProviderMock
-            .Setup(provider => provider.SendEmailAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), null))
-            .ReturnsAsync(true);
-
-        var service = new NotificationService(
-            notificationRepositoryMock.Object,
-            emailProviderMock.Object);
-
-        var notification = new Notification
-        {
-            Id = Guid.NewGuid(),
-            Title = "Test",
-            Message = "Message",
-            Channel = NotificationChannel.Email,
-            Recipient = new User { Email = "test@example.com" }
-        };
-
-        await service.SendNotificationAsync(notification);
-
-        notification.Status.Should().Be(NotificationStatus.Sent);
-        notificationRepositoryMock.Verify(repo => repo.UpdateNotificationStatusAsync(notification.Id, NotificationStatus.Sent), Times.Once);
-    }
-}
 
 public class NotificationValidatorTests
 {

@@ -32,6 +32,7 @@ builder.Services.AddScoped<INotificationCommandService, NotificationCommandServi
 builder.Services.AddScoped<INotificationQueryService, NotificationQueryService>();
 
 builder.Services.AddScoped<IEmailProvider, SmtpEmailProvider>();
+builder.Services.AddSingleton<ISmtpClientFactory, SmtpClientFactory>();
 
 var app = builder.Build();
 
