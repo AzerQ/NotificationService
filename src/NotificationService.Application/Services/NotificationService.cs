@@ -1,3 +1,4 @@
+using System.Text.Json;
 using NotificationService.Application.DTOs;
 using NotificationService.Application.Interfaces;
 using NotificationService.Application.Mappers;
@@ -12,6 +13,7 @@ public class NotificationCommandService : INotificationCommandService
     private readonly ITemplateRepository _templateRepository;
     private readonly IUserRepository _userRepository;
     private readonly INotificationMapper _notificationMapper;
+    private readonly ITemplateRenderer _templateRenderer;
     private readonly INotificationSender _notificationSender;
 
     public NotificationCommandService(
@@ -19,12 +21,14 @@ public class NotificationCommandService : INotificationCommandService
         ITemplateRepository templateRepository,
         IUserRepository userRepository,
         INotificationSender notificationSender,
+        ITemplateRenderer templateRenderer,
         INotificationMapper? notificationMapper = null)
     {
         _notificationRepository = notificationRepository ?? throw new ArgumentNullException(nameof(notificationRepository));
         _templateRepository = templateRepository ?? throw new ArgumentNullException(nameof(templateRepository));
         _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
         _notificationSender = notificationSender ?? throw new ArgumentNullException(nameof(notificationSender));
+        _templateRenderer = templateRenderer ?? throw new ArgumentNullException(nameof(templateRenderer));
         _notificationMapper = notificationMapper ?? new NotificationMapper();
     }
 
@@ -43,6 +47,18 @@ public class NotificationCommandService : INotificationCommandService
         }
 
         var notification = _notificationMapper.MapFromRequest(request, user, template);
+
+        // Render message/subject from template if provided
+        if (template is not null && request.Parameters is JsonElement payload)
+        {
+            var renderedContent = _templateRenderer.Render(template.Content, payload);
+            var renderedSubject = string.IsNullOrWhiteSpace(template.Subject)
+                ? notification.Title
+                : _templateRenderer.Render(template.Subject, payload);
+
+            notification.Message = string.IsNullOrWhiteSpace(renderedContent) ? notification.Message : renderedContent;
+            notification.Title = string.IsNullOrWhiteSpace(renderedSubject) ? notification.Title : renderedSubject;
+        }
 
         await _notificationRepository.SaveNotificationAsync(notification);
 
