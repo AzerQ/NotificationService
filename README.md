@@ -1,5 +1,57 @@
 # Сервис уведомлений для Docsvision
 
+## Quick Start
+
+- Требования: .NET 8 SDK, SQLite доступен из коробки.
+- Сборка решения и запуск API:
+  
+  ```bash
+  git clone https://github.com/your-repo/docsvision-notifications.git
+  cd docsvision-notifications
+  dotnet build
+  dotnet run
+  ```
+
+- Инициализация БД:
+  - При первом старте API автоматически применяются миграции и добавляются базовые данные (шаблоны, тестовый пользователь).
+
+## Конфигурация
+- См. `docs/reference/Configuration.md`
+- Основные параметры: `ConnectionStrings:Notifications` (SQLite), секция `Email` (SMTP)
+
+## Документация
+- Архитектура: `docs/reference/Architecture.md`
+- Конфигурация: `docs/reference/Configuration.md`
+- База данных и миграции: `docs/reference/Database.md`
+- Шаблоны уведомлений: `docs/reference/Templates.md`
+- API справочник: `docs/reference/API.md`
+- Руководство разработчика: `docs/guides/DeveloperGuide.md`
+
+## Примеры запросов
+
+Создать уведомление:
+
+```
+POST /api/notification
+Content-Type: application/json
+
+{
+  "title": "Новое задание",
+  "message": "<h1>Новое задание</h1>",
+  "recipientId": "00000000-0000-0000-0000-000000000001",
+  "channel": "Email",
+  "templateName": "TaskCreated",
+  "parameters": {
+    "TaskSubject": "Согласование договора"
+  }
+}
+```
+
+Отправить уведомление:
+```
+POST /api/notification/{id}/send
+```
+
 ## Постановка задачи
 
 ### Цель проекта

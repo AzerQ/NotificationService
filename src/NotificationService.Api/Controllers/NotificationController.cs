@@ -19,21 +19,40 @@ public class NotificationController : ControllerBase
         _queryService = queryService ?? throw new ArgumentNullException(nameof(queryService));
     }
 
+    /// <summary>
+    /// Создает новое уведомление.
+    /// </summary>
+    /// <param name="request">Данные уведомления.</param>
+    /// <returns>Созданное уведомление.</returns>
     [HttpPost]
+    [ProducesResponseType(typeof(NotificationResponseDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<NotificationResponseDto>> CreateAsync([FromBody] NotificationRequestDto request)
     {
         var result = await _commandService.CreateNotificationAsync(request);
         return CreatedAtAction(nameof(GetByIdAsync), new { id = result.Id }, result);
     }
 
+    /// <summary>
+    /// Отправляет ранее созданное уведомление.
+    /// </summary>
+    /// <param name="id">Идентификатор уведомления.</param>
     [HttpPost("{id:guid}/send")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> SendAsync(Guid id)
     {
         await _commandService.SendNotificationAsync(id);
         return NoContent();
     }
 
+    /// <summary>
+    /// Возвращает уведомление по идентификатору.
+    /// </summary>
+    /// <param name="id">Идентификатор уведомления.</param>
     [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(NotificationResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<NotificationResponseDto>> GetByIdAsync(Guid id)
     {
         var result = await _queryService.GetByIdAsync(id);
@@ -45,14 +64,25 @@ public class NotificationController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>
+    /// Возвращает список уведомлений по пользователю.
+    /// </summary>
+    /// <param name="userId">Идентификатор пользователя.</param>
     [HttpGet("by-user/{userId:guid}")]
+    [ProducesResponseType(typeof(IReadOnlyCollection<NotificationResponseDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyCollection<NotificationResponseDto>>> GetByUserAsync(Guid userId)
     {
         var result = await _queryService.GetByUserAsync(userId);
         return Ok(result);
     }
 
+    /// <summary>
+    /// Возвращает список уведомлений по статусу.
+    /// </summary>
+    /// <param name="status">Статус (Pending|Sent|Failed|Delivered).</param>
     [HttpGet("by-status/{status}")]
+    [ProducesResponseType(typeof(IReadOnlyCollection<NotificationResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<IReadOnlyCollection<NotificationResponseDto>>> GetByStatusAsync(string status)
     {
         var result = await _queryService.GetByStatusAsync(status);
